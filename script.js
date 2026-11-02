@@ -1,12 +1,29 @@
 const canvas=document.querySelector('#landscape'),ctx=canvas.getContext('2d');
 const reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
-let width=0,height=0,view=0,paused=reduce.matches,frame=0,last=0,raf;
-const views=[['Distributions','Finding structure in uncertainty.'],['Connections','Seeing relationships through a different lens.'],['Inference','From observations to understanding.']];
+let width=0,height=0,paused=reduce.matches,elapsed=reduce.matches?7000:0,last=null,raf;
+const cycle=11000,drawTime=8000;
 function resize(){const r=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);width=r.width;height=r.height;canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
-function draw(){ctx.fillStyle='#10130f';ctx.fillRect(0,0,width,height);const t=frame*.003;const scale=Math.min(width/8,height/5.5);const points=[];for(let i=-48;i<=48;i++){for(let j=-35;j<=35;j++){const x=i/12,z=j/11;let y;if(view===0)y=2.4*Math.exp(-((x+.9)**2+(z+.5)**2)*.65)+1.8*Math.exp(-((x-1.7)**2+(z-1)**2)*1.2);else if(view===1)y=.65*Math.sin(x*1.7+t)*Math.cos(z*1.4)+.9;else y=1.5*Math.exp(-((z-x*.5)**2)*.8)*Math.cos(x*.7+t)*.8+.9;const a=-.45+Math.sin(t*.25)*.1;const xx=x*Math.cos(a)-z*Math.sin(a),zz=x*Math.sin(a)+z*Math.cos(a);const px=width*.5+xx*scale,py=height*.49+zz*scale*.38-y*scale*.8;points.push({x:px,y:py,z:zz,h:y,i,j})}}points.sort((a,b)=>a.z-b.z);for(const p of points){const alpha=.28+p.h*.23;ctx.fillStyle=view===1?`rgba(133,176,169,${alpha})`:`rgba(${150+p.h*18},${159+p.h*18},${111+p.h*12},${alpha})`;ctx.beginPath();ctx.arc(p.x,p.y,p.h>1.2?1.05:.65,0,Math.PI*2);ctx.fill();if(p.i%8===0&&p.j%8===0){ctx.strokeStyle='#a5b78212';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x,p.y+p.h*scale*.8);ctx.stroke()}}}
-function tick(now){if(now-last>32){if(!paused)frame++;draw();last=now}if(!paused)raf=requestAnimationFrame(tick)}
+function draw(){
+ ctx.clearRect(0,0,width,height);ctx.fillStyle='#10130f';ctx.fillRect(0,0,width,height);
+ const left=width<450?42:65,right=width-35,top=90,bottom=height-205;
+ const xMin=-Math.PI*2,xMax=Math.PI*2,yMin=-1.5,yMax=1.5;
+ const px=x=>left+(x-xMin)/(xMax-xMin)*(right-left),py=y=>bottom-(y-yMin)/(yMax-yMin)*(bottom-top);
+ ctx.lineWidth=1;ctx.font='10px monospace';
+ for(let x=-6;x<=6;x++){ctx.strokeStyle='#a2b18412';ctx.beginPath();ctx.moveTo(px(x),top);ctx.lineTo(px(x),bottom);ctx.stroke()}
+ for(let y=-1.5;y<=1.5;y+=.5){ctx.strokeStyle='#a2b18412';ctx.beginPath();ctx.moveTo(left,py(y));ctx.lineTo(right,py(y));ctx.stroke()}
+ ctx.strokeStyle='#a9b69670';ctx.beginPath();ctx.moveTo(left,py(0));ctx.lineTo(right+8,py(0));ctx.moveTo(px(0),bottom+8);ctx.lineTo(px(0),top-10);ctx.stroke();
+ ctx.beginPath();ctx.moveTo(right+3,py(0)-4);ctx.lineTo(right+8,py(0));ctx.lineTo(right+3,py(0)+4);ctx.moveTo(px(0)-4,top-5);ctx.lineTo(px(0),top-10);ctx.lineTo(px(0)+4,top-5);ctx.stroke();
+ ctx.fillStyle='#a9b696';ctx.fillText('x',right+10,py(0)+4);ctx.fillText('y',px(0)+9,top-6);
+ ctx.textAlign='center';for(const [x,label] of [[-2*Math.PI,'−2π'],[-Math.PI,'−π'],[Math.PI,'π'],[2*Math.PI,'2π']]){ctx.fillText(label,px(x),py(0)+19)}ctx.textAlign='right';for(const y of [-1,1])ctx.fillText(String(y),px(0)-10,py(y)+4);ctx.textAlign='left';ctx.fillText('0',px(0)+8,py(0)+18);
+ const progress=Math.min((elapsed%cycle)/drawTime,1),end=xMin+(xMax-xMin)*progress;
+ ctx.strokeStyle='#bdcf99';ctx.lineWidth=2;ctx.lineJoin='round';ctx.shadowColor='#a9ce84';ctx.shadowBlur=9;ctx.beginPath();
+ const steps=Math.max(1,Math.ceil(progress*600));for(let i=0;i<=steps;i++){const x=xMin+(end-xMin)*i/steps,y=Math.sin(x);if(i===0)ctx.moveTo(px(x),py(y));else ctx.lineTo(px(x),py(y))}ctx.stroke();ctx.shadowBlur=0;
+ const ex=px(end),ey=py(Math.sin(end));ctx.setLineDash([3,5]);ctx.strokeStyle='#bdcf9940';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex,py(0));ctx.stroke();ctx.setLineDash([]);
+ ctx.fillStyle='#c8dda8';ctx.shadowColor='#b7d297';ctx.shadowBlur=16;ctx.beginPath();ctx.arc(ex,ey,4,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+ document.querySelector('#draw-progress').textContent=`${Math.round(progress*100)}% DRAWN`;
+}
+function tick(now){if(last!==null)elapsed+=Math.min(now-last,80);last=now;draw();if(!paused)raf=requestAnimationFrame(tick)}
 function motionLabel(){const b=document.querySelector('#motion');b.textContent=paused?'Play ↗':'Pause ↙';b.setAttribute('aria-label',paused?'Play animation':'Pause animation');b.setAttribute('aria-pressed',String(paused))}
-document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=Number(b.dataset.view);document.querySelectorAll('[data-view]').forEach(x=>{const selected=x===b;x.classList.toggle('active',selected);x.setAttribute('aria-pressed',String(selected))});document.querySelector('#scene-title').textContent=views[view][0];document.querySelector('#scene-description').textContent=views[view][1];document.querySelector('#scene-count').textContent=`0${view+1} / 03`;draw()}));
-document.querySelector('#motion').addEventListener('click',()=>{paused=!paused;motionLabel();cancelAnimationFrame(raf);if(!paused)raf=requestAnimationFrame(tick)});
-document.querySelectorAll('details').forEach(item=>item.addEventListener('toggle',()=>{if(item.open)document.querySelectorAll('details').forEach(other=>{if(other!==item)other.open=false})}));
+document.querySelector('#motion').addEventListener('click',()=>{paused=!paused;last=null;motionLabel();cancelAnimationFrame(raf);if(!paused)raf=requestAnimationFrame(tick)});
+reduce.addEventListener('change',event=>{paused=event.matches;last=null;cancelAnimationFrame(raf);if(paused){elapsed=drawTime;draw()}else raf=requestAnimationFrame(tick);motionLabel()});
 new ResizeObserver(resize).observe(canvas);motionLabel();if(!paused)raf=requestAnimationFrame(tick);document.querySelector('#year').textContent=new Date().getFullYear();
